@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define MAX_LINE_LENGTH 100
@@ -44,19 +45,49 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-void maze_test(char *file_name) {
+bool maze_test(char *file_name) {
   FILE *fptr;
-  char line[MAX_LINE_LENGTH];
+  // char line[MAX_LINE_LENGTH];
 
   fptr = fopen(file_name, "r");
   if (fptr == NULL) {
-    fprintf(stderr, "Error opening file!");
-    return;
+    fprintf(stderr, "Error opening file!\n");
+    return false;
   }
 
-  while (fgets(line, MAX_LINE_LENGTH, fptr)) {
-    printf("%s", line);
+  int size[2] = {0};
+
+  // Load size
+  for (int i = 0; i < 2; i++) {
+    fscanf(fptr, "%d", &size[i]);
   }
+
+  if (size[0] == 0 || size[1] == 0) {
+    fprintf(stderr, "Size is 0x0?\n");
+    return false;
+  }
+
+  // Test size
+  int maze[size[0] * size[1]];
+  int count = 0;
+  int row = 0;
+  int column = 0;
+  while (fscanf(fptr, "%d", &maze[count]) != EOF) {
+    if (count > (size[0] * size[1])) {
+      fprintf(stderr, "Invalid size!\n");
+      return false;
+    }
+
+    if (count % size[1] == 0) {
+      row++;
+    }
+
+    column = count % size[0];
+    count++;
+  }
+
+  printf("rows: %d, columns: %d\n", size[0], size[1]);
+  printf("count: %d\n", count);
 
   fclose(fptr);
 }
