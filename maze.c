@@ -128,45 +128,60 @@ void load_maze_size(FILE *fptr, int *size) {
   }
 }
 
+unsigned char *init_maze(int size) {
+  unsigned char *ptr = malloc(sizeof(unsigned char) * size);
+  if (ptr == NULL) {
+    fprintf(stderr, "No memory!");
+  }
+
+  for (int i = 0; i < size; i++) {
+    ptr[i] = 0;
+  }
+
+  return ptr;
+}
+
 /* Returns 1 as failure, 0 for success
  * TODO: Split into more functions
  */
 int maze_test(char *file_name) {
   // Load file
   FILE *fptr;
-
   open_file(&fptr, file_name);
 
   // Load size
   int size[2] = {0};
   load_maze_size(fptr, size);
 
-  // Test size & load maze
-  unsigned char cell_grid[size[0] * size[1]];
-  Map maze = {.rows = size[0], .cols = size[1], .cells = cell_grid};
+  // Init maze & test borders
+  Map maze = {
+      .rows = size[0], .cols = size[1], .cells = init_maze(size[0] * size[1])};
 
+  // TODO: Put this into one function
   int count = 0;
   int tmp = 0;
   while (fscanf(fptr, "%d", &tmp) != EOF) {
     if (tmp < 0 || tmp > 255) {
       fprintf(stderr, "Invalid\n");
+      free(maze.cells);
       return 1;
     }
 
     if (count >= (maze.rows * maze.cols)) {
       fprintf(stderr, "Invalid\n");
+      free(maze.cells);
       return 1;
     }
 
     // Save value
     maze.cells[count] = (unsigned char)tmp;
-
     count++;
   }
 
   pmesg("rows: %d, columns: %d\n", maze.rows, maze.cols);
   pmesg("count: %d\n", count);
 
+  // TODO: into one function
   // Check border validity
   // get neigbourts around one cell
   for (int i = 0; i < maze.rows; i++) {
@@ -190,6 +205,7 @@ int maze_test(char *file_name) {
 
       if (!valid_borders(maze.cells[i * maze.cols + j], neighbors)) {
         fprintf(stderr, "Invalid\n");
+        free(maze.cells);
         return 1;
       }
     }
@@ -197,6 +213,7 @@ int maze_test(char *file_name) {
   fclose(fptr);
 
   fprintf(stdout, "Valid\n");
+  free(maze.cells);
   return 0;
 }
 
