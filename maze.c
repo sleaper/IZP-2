@@ -4,14 +4,19 @@
 #include <string.h>
 
 #ifndef NDEBUG
-#define pmesg(s, ...) fprintf(stderr, s, __VA_ARGS__)
+#define pmesg(s, ...)                                                          \
+  fprintf(stderr, "%s:%u: " s "\n", __func__, __LINE__, ##__VA_ARGS__)
 #else
-#define pmesg(s, ...) (0)
+#define pmesg(s, ...)                                                          \
+  do {                                                                         \
+  } while (0)
 #endif
 
 #define MAX_LINE_LENGTH 100
 #define CELL_NEIGHBORS_COUNT 3
 #define EMPTY_CELL 10
+#define RIGHT_RULE 6
+#define LEFT_RULE 7
 
 typedef struct {
   int rows;
@@ -27,12 +32,12 @@ typedef struct {
 bool isborder(Map *map, int r, int c, int border);
 bool valid_borders(unsigned char cell, unsigned char *neighbors);
 void print_help();
-int maze_test(char *file_name);
+unsigned char *maze_test(char *file_name);
 int start_border(Map *map, int r, int c, int leftright);    // TODO
-void rpath(coordinates_t start, char *file_name);           // TODO
+unsigned char *rpath(coordinates_t start, char *file_name); // TODO
 void lpath(Map *map, coordinates_t start, char *file_name); // TODO
-void load_maze_size(FILE *fptr, int *size);
-int open_file(FILE **fptr, char *file_name);
+Map *init_maze(FILE **fptr, Map *maze, char *file_name);
+Map *map_load(FILE **fptr, Map *maze);
 
 // TODO: remove later
 void showbits(unsigned char x) {
@@ -49,12 +54,20 @@ int main(int argc, char **argv) {
     print_help();
     return 0;
   } else if (argc == 3 && !strcmp(argv[1], "--test")) {
-    pmesg("Running maze test %d\n", 0);
-    maze_test(argv[2]);
-    return 0;
+    pmesg("Running maze test");
+    unsigned char *cells = maze_test(argv[2]);
+
+    if (cells == NULL) {
+      fprintf(stderr, "Invalid\n");
+      return 1;
+    } else {
+      free(cells);
+      fprintf(stdout, "Valid\n");
+      return 0;
+    }
   } else if (argc == 5 && !strcmp(argv[1], "--rpath")) {
-    printf("RPATH");
-    printf("START at: [%s][%s]", argv[2], argv[3]);
+    pmesg("RPATH");
+    pmesg("START at: [%s][%s]", argv[2], argv[3]);
     coordinates_t start = {.left = atoi(argv[2]), .right = atoi(argv[3])};
     // TODO Valid start point somehow
     rpath(start, argv[4]);
@@ -62,10 +75,11 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Invalid argument\n");
   }
 
-  pmesg("Hello world argc: %d\n", argc);
+  pmesg("Hello world argc: %d", argc);
   return 0;
 }
 
+// leftright: 7 (right hand rule), 6 (left hand rule)
 // 0 = left, 1 = right, 2 = up/down
 int start_border(Map *map, int r, int c, int leftright) {
   // 1.From which side are we accessing the maze
@@ -75,111 +89,124 @@ int start_border(Map *map, int r, int c, int leftright) {
   if (c == 1) {
     // Even row
     if (r % 2 == 0) {
-      return leftright == 1 ? 2 : 0;
+      return leftright == RIGHT_RULE ? 2 : 1;
     } else {
-      return leftright == 1 ? 1 : 2;
+      return leftright == RIGHT_RULE ? 1 : 2;
     }
   }
 
   // From up
   if (r == 1) {
+    return leftright == RIGHT_RULE ? 1 : 0;
   }
 
   // From down
   if (r == map->rows) {
+    return leftright == RIGHT_RULE ? 1 : 0;
   }
 
   // From right
   if (c == map->cols) {
+    if (r % 2 == 0) {
+      return leftright == RIGHT_RULE ? 0 : 2;
+    } else {
+      return leftright == RIGHT_RULE ? 2 : 0;
+    }
   }
   return 1;
 }
 
-void rpath(coordinates_t start, char *file_name) {
+unsigned char *rpath(coordinates_t start, char *file_name) {
   // Load file
   FILE *fptr;
+  Map maze = {0};
+  if (init_maze(&fptr, &maze, file_name) == NULL) {
+    return NULL;
+  }
 
-  open_file(&fptr, file_name);
+  if (map_load(&fptr, &maze) == NULL) {
+    return NULL;
+  }
 
-  // Load size
-  int size[2] = {0};
-  load_maze_size(fptr, size);
-
-  unsigned char cell_grid[size[0] * size[1]];
-  Map maze = {.rows = size[0], .cols = size[1], .cells = cell_grid};
-
-  printf("Start border: %d", start_border(&maze, start.left, start.right, 1));
+  pmesg("Start border: %d",
+        start_border(&maze, start.left, start.right, RIGHT_RULE));
 
   // Search algorithm
+
+  (void)(start);
+  return maze.cells;
 }
 
-int open_file(FILE **fptr, char *file_name) {
-  *fptr = fopen(file_name, "r");
-  if (*fptr == NULL) {
-    fprintf(stderr, "Error opening file!\n");
-    return 1;
-  }
-  return 0;
-}
-
-void load_maze_size(FILE *fptr, int *size) {
-  for (int i = 0; i < 2; i++) {
-    fscanf(fptr, "%d", &size[i]);
-  }
-}
-
-unsigned char *init_maze(int size) {
-  unsigned char *ptr = malloc(sizeof(unsigned char) * size);
-  if (ptr == NULL) {
-    fprintf(stderr, "No memory!");
-  }
-
-  for (int i = 0; i < size; i++) {
-    ptr[i] = 0;
-  }
-
-  return ptr;
-}
-
-/* Returns 1 as failure, 0 for success
- * TODO: Split into more functions
- */
-int maze_test(char *file_name) {
-  // Load file
-  FILE *fptr;
-  open_file(&fptr, file_name);
-
-  // Load size
-  int size[2] = {0};
-  load_maze_size(fptr, size);
-
-  // Init maze & test borders
-  Map maze = {
-      .rows = size[0], .cols = size[1], .cells = init_maze(size[0] * size[1])};
-
-  // TODO: Put this into one function
+Map *map_load(FILE **fptr, Map *maze) {
   int count = 0;
   int tmp = 0;
-  while (fscanf(fptr, "%d", &tmp) != EOF) {
+  while (fscanf(*fptr, "%d", &tmp) != EOF) {
     if (tmp < 0 || tmp > 255) {
-      fprintf(stderr, "Invalid\n");
-      free(maze.cells);
-      return 1;
+      free(maze->cells);
+      return NULL;
     }
 
-    if (count >= (maze.rows * maze.cols)) {
-      fprintf(stderr, "Invalid\n");
-      free(maze.cells);
-      return 1;
+    if (count >= (maze->rows * maze->cols)) {
+      free(maze->cells);
+      return NULL;
     }
 
     // Save value
-    maze.cells[count] = (unsigned char)tmp;
+    maze->cells[count] = (unsigned char)tmp;
     count++;
   }
+  pmesg("count: %d", count);
+  return maze;
+}
 
-  pmesg("rows: %d, columns: %d\n", maze.rows, maze.cols);
-  pmesg("count: %d\n", count);
+Map *init_maze(FILE **fptr, Map *maze, char *file_name) {
+
+  // Open file
+  *fptr = fopen(file_name, "r");
+  if (*fptr == NULL) {
+    pmesg("Error opening file!");
+    return NULL;
+  }
+
+  // Get size from first row
+  int size[2] = {0};
+  for (int i = 0; i < 2; i++) {
+    fscanf(*fptr, "%d", &size[i]);
+  }
+
+  unsigned char *ptr = malloc(sizeof(unsigned char) * size[0] * size[1]);
+  if (ptr == NULL) {
+    pmesg("No memory!");
+    return NULL;
+  }
+
+  maze->rows = size[0];
+  maze->cols = size[1];
+  maze->cells = ptr;
+
+  for (int i = 0; i < size[0] * size[1]; i++) {
+    maze->cells[i] = 0;
+  }
+
+  return maze;
+}
+
+/* Returns ptr for success, 0 as failure
+ * TODO: Split into more functions
+ */
+unsigned char *maze_test(char *file_name) {
+  // Load file
+  FILE *fptr;
+  Map maze = {0};
+  if (init_maze(&fptr, &maze, file_name) == NULL) {
+    return NULL;
+  }
+
+  if (map_load(&fptr, &maze) == NULL) {
+    return NULL;
+  }
+
+  pmesg("rows: %d, columns: %d", maze.rows, maze.cols);
 
   // TODO: into one function
   // Check border validity
@@ -204,17 +231,14 @@ int maze_test(char *file_name) {
       }
 
       if (!valid_borders(maze.cells[i * maze.cols + j], neighbors)) {
-        fprintf(stderr, "Invalid\n");
         free(maze.cells);
-        return 1;
+        return NULL;
       }
     }
   }
-  fclose(fptr);
 
-  fprintf(stdout, "Valid\n");
-  free(maze.cells);
-  return 0;
+  fclose(fptr);
+  return maze.cells;
 }
 
 bool valid_borders(unsigned char cell, unsigned char *neighbors) {
