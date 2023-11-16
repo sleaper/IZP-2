@@ -56,8 +56,8 @@ Map *map_load(FILE **fptr, Map *maze);
 
 // Array index represents current border, value for index represents right--
 //--border from current border
-int rpath_odd_dir[NDIR] = {2, 0, 1};
-int rpath_even_dir[NDIR] = {1, 2, 0};
+int rpath_even_dir[NDIR] = {2, 0, 1};
+int rpath_odd_dir[NDIR] = {1, 2, 0};
 
 int lpath_odd_dir[NDIR] = {2, 0, 1};
 int lpath_even_dir[NDIR] = {1, 2, 0};
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
     }
   } else if (argc == 5 && !strcmp(argv[1], "--rpath")) {
     // Zero index
-    coordinates_t start = {.row = atoi(argv[2]) - 1, .col = atoi(argv[3]) - 1};
+    coordinates_t start = {.row = atoi(argv[2]), .col = atoi(argv[3])};
     // TODO Valid start point somehow
     int result = rpath(start, argv[4]);
     if (result == -1) {
@@ -108,9 +108,9 @@ int main(int argc, char **argv) {
 int start_border(Map *map, int r, int c, int leftright) {
 
   // From left
-  if (c == 0) {
+  if (c == 1) {
     // Even row
-    if (r % 2 == 0) {
+    if (r % 2 != 0) {
       return leftright == RIGHT_RULE ? RIGHT_BORDER : VERTICAL_BORDER;
     } else {
       return leftright == RIGHT_RULE ? VERTICAL_BORDER : RIGHT_BORDER;
@@ -118,18 +118,18 @@ int start_border(Map *map, int r, int c, int leftright) {
   }
 
   // From up
-  if (r == 0) {
+  if (r == 1) {
     return leftright == RIGHT_RULE ? RIGHT_BORDER : LEFT_BORDER;
   }
 
   // From down
-  if (r == (map->rows - 1)) {
+  if (r == map->rows) {
     return leftright == RIGHT_RULE ? RIGHT_BORDER : LEFT_BORDER;
   }
 
   // From right
-  if (c == (map->cols - 1)) {
-    if (r % 2 == 0) {
+  if (c == map->cols) {
+    if (r % 2 != 0) {
       return leftright == RIGHT_RULE ? VERTICAL_BORDER : LEFT_BORDER;
     } else {
       return leftright == RIGHT_RULE ? LEFT_BORDER : VERTICAL_BORDER;
@@ -152,37 +152,31 @@ int rpath(coordinates_t start_cell, char *file_name) {
     return -1;
   }
 
-  pmesg("Start border: %d",
-        start_border(&maze, start_cell.row, start_cell.col, RIGHT_RULE));
-
   coordinates_t curr_cell = start_cell;
   int curr_border =
       start_border(&maze, start_cell.row, start_cell.col, RIGHT_RULE);
 
   // Search algorithm
   while (1) {
-    fprintf(stdout, "%d,%d\n", curr_cell.row + 1, curr_cell.col + 1);
+    fprintf(stdout, "%d,%d\n", curr_cell.row, curr_cell.col);
 
-    curr_border = get_right_border(&maze, curr_cell, curr_border);
-
-    while (isborder(&maze, curr_cell.row, curr_cell.col, curr_border)) {
+    // Change for do_while
+    do {
       curr_border = get_right_border(&maze, curr_cell, curr_border);
-      pmesg("Border in triangle[%d][%d] %d", curr_cell.row + 1,
-            curr_cell.col + 1, curr_border);
-    }
+    } while (isborder(&maze, curr_cell.row, curr_cell.col, curr_border));
 
     next_cell(&maze, &curr_cell, curr_border);
 
     if (is_exit(&maze, curr_cell)) {
-      pmesg("We found exit! %d, %d vs %d, %d", curr_cell.row + 1,
-            curr_cell.col + 1, maze.rows, maze.cols);
+      pmesg("We found exit! %d, %d vs %d, %d", curr_cell.row, curr_cell.col,
+            maze.rows, maze.cols);
       break;
     }
 
-    pmesg("next cell; %d, %d", curr_cell.row + 1, curr_cell.col + 1);
+    pmesg("next cell; %d, %d", curr_cell.row, curr_cell.col);
     pmesg("curr border; %d", curr_border);
     curr_border = new_border(curr_border);
-    pmesg("next border; %d", curr_border);
+    pmesg("new cell border; %d", curr_border);
     if (curr_border == -1) {
       pmesg("Some border error");
       return -1;
@@ -194,9 +188,9 @@ int rpath(coordinates_t start_cell, char *file_name) {
 }
 
 bool is_exit(Map *maze, coordinates_t cell) {
-  if (cell.row < 0 || cell.row > maze->rows - 1 || cell.col < 0 ||
-      cell.col > maze->cols - 1) {
-    pmesg("We found exit! cell:%d, %d ??? %d, %d", cell.row + 1, cell.col + 1,
+  if (cell.row < 1 || cell.row > maze->rows || cell.col < 1 ||
+      cell.col > maze->cols) {
+    pmesg("We found exit! cell:%d, %d ??? %d, %d", cell.row, cell.col,
           maze->rows, maze->cols);
     return true;
   }
@@ -222,15 +216,17 @@ int new_border(int old_border) {
 
 void next_cell(Map *maze, coordinates_t *curr_cell, int border) {
   bool isMazeColEven = (maze->cols % 2) == 0;
-  bool isOddRow = (curr_cell->row % 2) != 0;
-  bool isCellIndexEven =
-      ((curr_cell->row * maze->cols + curr_cell->col) % 2 == 0);
+  bool isRowEven = (curr_cell->row % 2) == 0;
+
+  int cellIndex =
+      ((curr_cell->row - 1) * maze->cols + (curr_cell->col - 1)) + 1;
+  bool isCellIndexEven = ((cellIndex) % 2 == 0);
 
   if (border == 2) {
-    if (isMazeColEven && isOddRow) {
-      curr_cell->row += isCellIndexEven ? 1 : -1;
-    } else {
+    if (isMazeColEven && isRowEven) {
       curr_cell->row += isCellIndexEven ? -1 : 1;
+    } else {
+      curr_cell->row += isCellIndexEven ? 1 : -1;
     }
   } else if (border == 1) {
     curr_cell->col += 1;
@@ -241,11 +237,9 @@ void next_cell(Map *maze, coordinates_t *curr_cell, int border) {
 
 int get_left_border(Map *maze, coordinates_t curr_cell, int border) {
   if ((curr_cell.row * maze->cols + curr_cell.col) % 2 == 0) {
-    pmesg("TESTING even");
-    return rpath_even_dir[border];
-  } else {
-    pmesg("TESTING odd");
     return rpath_odd_dir[border];
+  } else {
+    return rpath_even_dir[border];
   }
 
   return -1;
@@ -253,11 +247,13 @@ int get_left_border(Map *maze, coordinates_t curr_cell, int border) {
 
 int get_right_border(Map *maze, coordinates_t curr_cell, int border) {
   bool isMazeColEven = (maze->cols % 2) == 0;
-  bool isOddRow = (curr_cell.row % 2) != 0;
-  bool isCellIndexEven =
-      ((curr_cell.row * maze->cols + curr_cell.col) % 2 == 0);
+  bool isRowEven = (curr_cell.row % 2) == 0;
 
-  if (isMazeColEven && isOddRow) {
+  // + 1 to remove 0 indexing
+  int cellIndex = ((curr_cell.row - 1) * maze->cols + (curr_cell.col - 1)) + 1;
+  bool isCellIndexEven = ((cellIndex) % 2 == 0);
+
+  if (isMazeColEven && isRowEven) {
     if (isCellIndexEven) {
       return rpath_odd_dir[border];
     } else {
@@ -265,10 +261,8 @@ int get_right_border(Map *maze, coordinates_t curr_cell, int border) {
     }
   } else {
     if (isCellIndexEven) {
-      pmesg("TESTING even");
       return rpath_even_dir[border];
     } else {
-      pmesg("TESTING odd");
       return rpath_odd_dir[border];
     }
   }
@@ -282,11 +276,13 @@ int get_right_border(Map *maze, coordinates_t curr_cell, int border) {
 // leva  + prava + spodni
 // 0			 1  		 2
 bool isborder(Map *map, int r, int c, int border) {
-  return (map->cells[r * map->cols + c] >> border) & 1 ? true : false;
+  // Do not forget on 0 index
+  return (map->cells[(r - 1) * map->cols + (c - 1)] >> border) & 1 ? true
+                                                                   : false;
 }
 
 Map *map_load(FILE **fptr, Map *maze) {
-  int count = 0;
+  int count = 1;
   int tmp = 0;
   while (fscanf(*fptr, "%d", &tmp) != EOF) {
     if (tmp < 0 || tmp > 255) {
@@ -294,17 +290,17 @@ Map *map_load(FILE **fptr, Map *maze) {
       return NULL;
     }
 
-    if (count >= (maze->rows * maze->cols)) {
+    if (count > (maze->rows * maze->cols)) {
       free(maze->cells);
       return NULL;
     }
 
     // Save value
-    maze->cells[count] = (unsigned char)tmp;
+    maze->cells[count - 1] = (unsigned char)tmp;
     count++;
   }
 
-  if (count != (maze->rows * maze->cols)) {
+  if (count != (maze->rows * maze->cols + 1)) {
     free(maze->cells);
     return NULL;
   }
@@ -356,6 +352,7 @@ unsigned char *maze_test(char *file_name) {
   }
 
   if (map_load(&fptr, &maze) == NULL) {
+    fclose(fptr);
     return NULL;
   }
 
@@ -364,39 +361,40 @@ unsigned char *maze_test(char *file_name) {
   // TODO: into one function
   // Check border validity
   // get neigbourts around one cell
-  for (int i = 0; i < maze.rows; i++) {
-    for (int j = 0; j < maze.cols; j++) {
+  for (int row = 1; row <= maze.rows; row++) {
+    for (int col = 1; col <= maze.cols; col++) {
       unsigned char neighbors[3];
 
-      // Left
-      neighbors[0] = (j > 0) ? maze.cells[(i * maze.cols) + j - 1] : EMPTY_CELL;
-      // Right
-      neighbors[1] = (j < maze.cols - 1) ? maze.cells[(i * maze.cols) + j + 1]
-                                         : EMPTY_CELL;
+      int cellIndex = (row - 1) * maze.cols + (col - 1);
+      bool isCellIndexEven = (cellIndex % 2) == 0;
 
-      pmesg("CELL [%d][%d] %d", i, j, (i * maze.cols + j));
-      if ((maze.cols % 2) == 0 && (i % 2) != 0) {
-        if ((((i * maze.cols) + j) % 2) == 0) {
-          neighbors[2] = (i < maze.rows - 1)
-                             ? maze.cells[(i + 1) * maze.cols + j]
-                             : EMPTY_CELL;
+      // Left
+      neighbors[0] = (col > 1) ? maze.cells[cellIndex - 1] : EMPTY_CELL;
+      // Right
+      neighbors[1] = (col < maze.cols) ? maze.cells[cellIndex + 1] : EMPTY_CELL;
+
+      //
+      // TODO: SPlit into another function
+      if ((maze.cols % 2) == 0 && (row % 2) == 0) {
+        if (isCellIndexEven) {
+          neighbors[2] = (row < maze.rows) ? maze.cells[cellIndex + maze.cols]
+                                           : EMPTY_CELL;
         } else {
           neighbors[2] =
-              (i > 0) ? maze.cells[(i - 1) * maze.cols + j] : EMPTY_CELL;
+              (row > 1) ? maze.cells[cellIndex - maze.cols] : EMPTY_CELL;
         }
       } else {
-        // Top/down
-        if ((((i * maze.cols) + j) % 2) == 0) {
+        if (isCellIndexEven) {
           neighbors[2] =
-              (i > 0) ? maze.cells[(i - 1) * maze.cols + j] : EMPTY_CELL;
+              (row > 1) ? maze.cells[cellIndex - maze.cols] : EMPTY_CELL;
         } else {
-          neighbors[2] = (i < maze.rows - 1)
-                             ? maze.cells[(i + 1) * maze.cols + j]
-                             : EMPTY_CELL;
+          neighbors[2] = (row < maze.rows) ? maze.cells[cellIndex + maze.cols]
+                                           : EMPTY_CELL;
         }
       }
 
-      if (!valid_borders(maze.cells[i * maze.cols + j], neighbors)) {
+      if (!valid_borders(maze.cells[(row - 1) * maze.cols + (col - 1)],
+                         neighbors)) {
         free(maze.cells);
         return NULL;
       }
