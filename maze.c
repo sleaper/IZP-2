@@ -43,33 +43,72 @@ typedef struct {
   int col;
 } coordinates_t;
 
+// Queue
 struct node {
   coordinates_t cell;
+  struct node *parent;
   struct node *next;
 };
 
 struct node *front = NULL;
 struct node *rear = NULL;
 
-void enqueue(coordinates_t cell);
-void dequeue(coordinates_t *new_cell);
+typedef struct {
+  struct node *array;
+  size_t used;
+  size_t size;
+} Array;
+
+void initArray(Array *a, size_t initialSize) {
+  a->array = malloc(initialSize * sizeof(struct node));
+  a->used = 0;
+  a->size = initialSize;
+}
+
+void insertArray(Array *a, struct node element) {
+  // a->used is the number of used entries, because a->array[a->used++] updates
+  // a->used only *after* the array has been accessed. Therefore a->used can go
+  // up to a->size
+  if (a->used == a->size) {
+    a->size *= 2;
+    a->array = realloc(a->array, a->size * sizeof(struct node));
+  }
+  a->array[a->used++] = element;
+}
+
+void freeArray(Array *a) {
+  free(a->array);
+  a->array = NULL;
+  a->used = a->size = 0;
+}
+
+void visited_enqueue(coordinates_t cell, struct node *parent);
+void visited_dequeue(struct node *new_cell);
+void enqueue(coordinates_t cell, struct node *parent);
+void dequeue(struct node *new_cell);
+
+void generalEnqueue(coordinates_t cell);
+void generalDequeue(coordinates_t *new_cell);
 
 int new_border(int old_border);
-bool is_exit(Map *maze, coordinates_t cell);
-void next_cell(Map *maze, coordinates_t *curr_cell, int border);
+int start_border(Map *map, int r, int c, int leftright);
 int get_side_border(Map *maze, coordinates_t curr_cell, int border,
                     int leftright);
-bool are_valid_coords(coordinates_t point);
 bool isborder(Map *map, int r, int c, int border);
 bool valid_borders(unsigned char cell, unsigned char *neighbors);
+
+bool is_exit(Map *maze, coordinates_t cell);
+void next_cell(Map *maze, coordinates_t *curr_cell, int border);
+bool are_valid_coords(coordinates_t point);
 void print_help();
-unsigned char *maze_test(char *file_name);
-int start_border(Map *map, int r, int c, int leftright);
+
 int path_by_rule(coordinates_t start_cell, char *file_name, int leftright);
-int shortest(coordinates_t start_cell, char *file_name);
+int bfs(coordinates_t start_cell, char *file_name);
+
 Map *init_maze(FILE **fptr, Map *maze, char *file_name);
 void free_maze(FILE **fptr, Map *maze);
 Map *map_load(FILE **fptr, Map *maze);
+unsigned char *maze_test(char *file_name);
 
 // TODO Clean code, make more redeable in general
 
@@ -137,7 +176,7 @@ int main(int argc, char **argv) {
       return 1;
     }
 
-    int result = shortest(start, argv[4]);
+    int result = bfs(start, argv[4]);
     if (result == -1) {
       return 1;
     }
@@ -154,7 +193,29 @@ bool are_valid_coords(coordinates_t point) {
   return false;
 }
 
-void enqueue(coordinates_t cell) {
+// void visited_enqueue(coordinates_t cell, struct node *parent) {
+//   pmesg("engquing %d, %d", cell.row, cell.col);
+//   struct node *nptr = malloc(sizeof(struct node));
+//   assert(nptr != NULL);
+//   if (nptr == NULL) {
+//     fprintf(stderr, "Failed to malloc\n");
+//   }
+//
+//   nptr->cell = cell;
+//   nptr->next = NULL;
+//   nptr->parent = parent;
+//
+//   if (visitedRear == NULL) {
+//     visitedFront = nptr;
+//     visitedRear = nptr;
+//   } else {
+//     visitedRear->next = nptr;
+//     visitedRear = visitedRear->next;
+//   }
+//   pmesg("PLEASE");
+// }
+
+void enqueue(coordinates_t cell, struct node *parent) {
   pmesg("engquing %d, %d", cell.row, cell.col);
   struct node *nptr = malloc(sizeof(struct node));
   assert(nptr != NULL);
@@ -164,15 +225,12 @@ void enqueue(coordinates_t cell) {
 
   nptr->cell = cell;
   nptr->next = NULL;
-  pmesg("PLS %d, %d", nptr->cell.row, nptr->cell.col);
+  nptr->parent = parent;
 
-  // pmesg("REAR SOMETHING %d, %d", rear->cell.row, rear->cell.col);
   if (rear == NULL) {
-    pmesg("REAR is NULL");
     front = nptr;
     rear = nptr;
   } else {
-    pmesg("REAR SOMETHING");
     rear->next = nptr;
     rear = rear->next;
   }
@@ -189,8 +247,16 @@ void display() {
   pmesg("END DISPLAY");
 }
 
-void dequeue(coordinates_t *new_cell) {
+void freeQueue() {
+  while (front != NULL) {
+    struct node *temp = front;
+    front = front->next;
+    free(temp);
+  }
+  rear = NULL; // Set rear to NULL as the queue is now empty
+}
 
+void dequeue(struct node *node) {
   if (front == NULL) {
     printf("\n\nqueue is empty \n");
     front = NULL;
@@ -198,9 +264,9 @@ void dequeue(coordinates_t *new_cell) {
   } else {
     struct node *temp;
     temp = front;
-    *new_cell = temp->cell;
+    *node = *temp;
+
     if (front == rear) {
-      pmesg("SAME");
       front = front->next;
       rear = rear->next;
     } else {
@@ -218,6 +284,7 @@ int get_cell_index(Map *maze, int r, int c) {
 
 int is_lebeled(Map *maze, coordinates_t cell) {
   int cell_index = get_cell_index(maze, cell.row, cell.col) - 1;
+  // showbits(maze->cells[cell_index]);
   if ((maze->cells[cell_index] >> 7) & 1) {
     return true;
   }
@@ -229,23 +296,128 @@ void set_label(Map *maze, coordinates_t cell) {
   maze->cells[cell_index] = maze->cells[cell_index] | 128;
 }
 
-void stack_neighbours(Map *maze, coordinates_t cell) {
-  pmesg("Base cell: %d, %d", cell.row, cell.col);
-  for (int i = 0; i < CELL_NEIGHBORS_COUNT; i++) {
-    if (!isborder(maze, cell.row, cell.col, i)) {
-      pmesg("free border at %d, %d, for %d", cell.row, cell.col, i);
-      coordinates_t tmp = cell;
-      next_cell(maze, &tmp, i);
-      if (tmp.row > 0 && tmp.row <= maze->rows && tmp.col > 0 &&
-          tmp.col <= maze->cols) {
-        pmesg("TESTING: %d, %d", tmp.row, tmp.col);
-        enqueue(tmp);
-      }
-    }
+// FIX THIS
+bool is_goal(Map *maze, coordinates_t root, coordinates_t curr) {
+  // Return false immediately if the current position is the start position,
+  // or if the current position is outside the bounds of the maze.
+  if ((curr.row == root.row && curr.col == root.col) || curr.row < 1 ||
+      curr.row > maze->rows || curr.col < 1 || curr.col > maze->cols) {
+    return false;
+  }
+
+  // Check if the current cell is on the edge of the maze and has an open
+  // border.
+  if (curr.row == 1 && !isborder(maze, curr.row, curr.col, VERTICAL_BORDER)) {
+    pmesg("CALLLLLLED %d",
+          !isborder(maze, curr.row, curr.col, VERTICAL_BORDER));
+    return true; // Top edge
+  }
+  if (curr.row == maze->rows &&
+      !isborder(maze, curr.row, curr.col, VERTICAL_BORDER)) {
+    return true; // Bottom edge
+  }
+  if (curr.col == 1 && !isborder(maze, curr.row, curr.col, LEFT_BORDER)) {
+    return true; // Left edge
+  }
+  if (curr.col == maze->cols &&
+      !isborder(maze, curr.row, curr.col, RIGHT_BORDER)) {
+    return true; // Right edge
+  }
+
+  // Not an exit if none of the above conditions are met
+  return false;
+}
+
+bool is_cell_nearby(coordinates_t main, coordinates_t parent) {
+  if ((main.row == parent.row - 1 || main.row == parent.row + 1) ||
+      (main.col == parent.col - 1 || main.col == parent.col + 1)) {
+    return true;
+  } else {
+    return false;
   }
 }
 
-int shortest(coordinates_t start_cell, char *file_name) {
+void reconstruct_path(coordinates_t s, struct node e) {
+  struct node *current = &e;
+  Array path;
+  initArray(&path, 10);
+
+  // Trace back from the end node to the start node
+  while (current != NULL) {
+    insertArray(&path, *current);
+    current = current->parent;
+  }
+
+  if (path.array[path.used - 1].cell.row == s.row &&
+      path.array[path.used - 1].cell.col == s.col) {
+    // Display the path in reverse (from start to end)
+    for (int i = path.used - 1; i >= 0; i--) {
+      printf("Path: (%d, %d)\n", path.array[i].cell.row,
+             path.array[i].cell.col);
+    }
+  } else {
+    fprintf(stderr, "Did not find shortest path out\n");
+  }
+
+  freeArray(&path);
+}
+
+//
+bool check_neighbours(Map *maze, coordinates_t start,
+                      struct node *dequeued_node, Array *visited, int *count) {
+
+  // Search visited for node and its index
+  struct node *lastVisited = &visited->array[*count - 1];
+  for (int k = 0; k < *count; k++) {
+    if (visited->array[k].cell.row == dequeued_node->cell.row &&
+        visited->array[k].cell.col == dequeued_node->cell.col) {
+      lastVisited = &visited->array[k];
+    }
+  }
+
+  pmesg("Checking cell %d %d", dequeued_node->cell.row,
+        dequeued_node->cell.col);
+  pmesg("LAST visited: %d %d", lastVisited->cell.row, lastVisited->cell.col);
+
+  for (int i = 0; i < CELL_NEIGHBORS_COUNT; i++) {
+    if (!isborder(maze, dequeued_node->cell.row, dequeued_node->cell.col, i)) {
+      pmesg("border %d is free", i);
+
+      struct node tmp = *dequeued_node;
+      next_cell(maze, &tmp.cell, i);
+
+      if (is_goal(maze, start, tmp.cell)) {
+        pmesg("I WAS CALLED");
+        return false;
+      }
+
+      // Is in maze??
+      if (tmp.cell.row > 0 && tmp.cell.row <= maze->rows && tmp.cell.col > 0 &&
+          tmp.cell.col <= maze->cols) {
+        //
+        if (!is_lebeled(maze, tmp.cell)) {
+          set_label(maze, tmp.cell);
+          tmp.parent = lastVisited;
+          insertArray(visited, tmp);
+          pmesg("PLEASE %d", *count);
+          pmesg("For NODE: %d %d parent: %d %d", tmp.cell.row, tmp.cell.col,
+                lastVisited->cell.row, lastVisited->cell.col);
+
+          enqueue(tmp.cell, lastVisited);
+          *count += 1;
+          // pmesg("SAVING PARENT: %d %d",
+          //       visited->array[*count - 1].parent->cell.row,
+          //       visited->array[*count - 1].parent->cell.col);
+        }
+      }
+    }
+  }
+  pmesg("\n");
+  pmesg("\n");
+  return true;
+}
+
+int bfs(coordinates_t start, char *file_name) {
   // Load file
   FILE *fptr;
   Map maze = {0};
@@ -260,24 +432,35 @@ int shortest(coordinates_t start_cell, char *file_name) {
     return -1;
   }
 
-  enqueue(start_cell);
-  display();
-  for (int i = 0; i < 4; i++) {
-    coordinates_t popped;
-    dequeue(&popped);
+  Array visited;
+  initArray(&visited, maze.cols * maze.rows);
+
+  struct node end;
+  struct node root = {.cell = start, .parent = NULL, .next = NULL};
+  enqueue(start, NULL);
+
+  int j = 0;
+  set_label(&maze, start);
+
+  insertArray(&visited, root);
+  j++;
+
+  while (front != NULL) {
+    struct node dequeued_node;
+    dequeue(&dequeued_node);
     display();
-    pmesg("is_lebeled: %d", is_lebeled(&maze, popped));
-    if (!is_lebeled(&maze, popped)) {
-      set_label(&maze, popped);
-      pmesg("after label: %d",
-            maze.cells[get_cell_index(&maze, popped.row, popped.col) - 1]);
-      showbits(maze.cells[get_cell_index(&maze, popped.row, popped.col) - 1]);
-      // TODO FINISH THIS
-      stack_neighbours(&maze, popped);
-      display();
-    }
+
+    fprintf(stdout, "%d, %d\n", dequeued_node.cell.row, dequeued_node.cell.col);
+
+    if (!check_neighbours(&maze, root.cell, &dequeued_node, &visited, &j)) {
+      end = dequeued_node;
+      break;
+    };
   }
 
+  reconstruct_path(start, end);
+
+  freeQueue();
   free_maze(&fptr, &maze);
   return 0;
 }
@@ -451,7 +634,9 @@ int get_side_border(Map *maze, coordinates_t curr_cell, int border,
 // leva  + prava + spodni
 // 0			 1  		 2
 bool isborder(Map *map, int r, int c, int border) {
+  // pmesg("%d %d", r, c);
   // Do not forget on 0 index
+  // showbits(map->cells[(r - 1) * map->cols + (c - 1)]);
   return (map->cells[(r - 1) * map->cols + (c - 1)] >> border) & 1 ? true
                                                                    : false;
 }
