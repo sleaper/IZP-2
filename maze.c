@@ -59,13 +59,13 @@ typedef struct {
   size_t size;
 } Array;
 
-void initArray(Array *a, size_t initialSize) {
+void init_array(Array *a, size_t initialSize) {
   a->array = malloc(initialSize * sizeof(struct node));
   a->used = 0;
   a->size = initialSize;
 }
 
-void insertArray(Array *a, struct node element) {
+void insert_array(Array *a, struct node element) {
   // a->used is the number of used entries, because a->array[a->used++] updates
   // a->used only *after* the array has been accessed. Therefore a->used can go
   // up to a->size
@@ -76,19 +76,14 @@ void insertArray(Array *a, struct node element) {
   a->array[a->used++] = element;
 }
 
-void freeArray(Array *a) {
+void free_array(Array *a) {
   free(a->array);
   a->array = NULL;
   a->used = a->size = 0;
 }
 
-void visited_enqueue(coordinates_t cell, struct node *parent);
-void visited_dequeue(struct node *new_cell);
 void enqueue(coordinates_t cell, struct node *parent);
 void dequeue(struct node *new_cell);
-
-void generalEnqueue(coordinates_t cell);
-void generalDequeue(coordinates_t *new_cell);
 
 int new_border(int old_border);
 int start_border(Map *map, int r, int c, int leftright);
@@ -193,28 +188,6 @@ bool are_valid_coords(coordinates_t point) {
   return false;
 }
 
-// void visited_enqueue(coordinates_t cell, struct node *parent) {
-//   pmesg("engquing %d, %d", cell.row, cell.col);
-//   struct node *nptr = malloc(sizeof(struct node));
-//   assert(nptr != NULL);
-//   if (nptr == NULL) {
-//     fprintf(stderr, "Failed to malloc\n");
-//   }
-//
-//   nptr->cell = cell;
-//   nptr->next = NULL;
-//   nptr->parent = parent;
-//
-//   if (visitedRear == NULL) {
-//     visitedFront = nptr;
-//     visitedRear = nptr;
-//   } else {
-//     visitedRear->next = nptr;
-//     visitedRear = visitedRear->next;
-//   }
-//   pmesg("PLEASE");
-// }
-
 void enqueue(coordinates_t cell, struct node *parent) {
   pmesg("engquing %d, %d", cell.row, cell.col);
   struct node *nptr = malloc(sizeof(struct node));
@@ -297,54 +270,26 @@ void set_label(Map *maze, coordinates_t cell) {
 }
 
 // FIX THIS
-bool is_goal(Map *maze, coordinates_t root, coordinates_t curr) {
+bool is_goal(Map *maze, coordinates_t start, coordinates_t new_cell,
+             coordinates_t base_cell) {
   // Return false immediately if the current position is the start position,
   // or if the current position is outside the bounds of the maze.
-  if ((curr.row == root.row && curr.col == root.col) || curr.row < 1 ||
-      curr.row > maze->rows || curr.col < 1 || curr.col > maze->cols) {
-    return false;
-  }
-
-  // Check if the current cell is on the edge of the maze and has an open
-  // border.
-  if (curr.row == 1 && !isborder(maze, curr.row, curr.col, VERTICAL_BORDER)) {
-    pmesg("CALLLLLLED %d",
-          !isborder(maze, curr.row, curr.col, VERTICAL_BORDER));
-    return true; // Top edge
-  }
-  if (curr.row == maze->rows &&
-      !isborder(maze, curr.row, curr.col, VERTICAL_BORDER)) {
-    return true; // Bottom edge
-  }
-  if (curr.col == 1 && !isborder(maze, curr.row, curr.col, LEFT_BORDER)) {
-    return true; // Left edge
-  }
-  if (curr.col == maze->cols &&
-      !isborder(maze, curr.row, curr.col, RIGHT_BORDER)) {
-    return true; // Right edge
-  }
-
-  // Not an exit if none of the above conditions are met
-  return false;
-}
-
-bool is_cell_nearby(coordinates_t main, coordinates_t parent) {
-  if ((main.row == parent.row - 1 || main.row == parent.row + 1) ||
-      (main.col == parent.col - 1 || main.col == parent.col + 1)) {
+  if ((new_cell.row < 1 || new_cell.row > maze->rows || new_cell.col < 1 ||
+       new_cell.col > maze->cols) &&
+      (base_cell.row != start.row || base_cell.col != start.col)) {
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 void reconstruct_path(coordinates_t s, struct node e) {
   struct node *current = &e;
   Array path;
-  initArray(&path, 10);
+  init_array(&path, 10);
 
   // Trace back from the end node to the start node
   while (current != NULL) {
-    insertArray(&path, *current);
+    insert_array(&path, *current);
     current = current->parent;
   }
 
@@ -352,17 +297,15 @@ void reconstruct_path(coordinates_t s, struct node e) {
       path.array[path.used - 1].cell.col == s.col) {
     // Display the path in reverse (from start to end)
     for (int i = path.used - 1; i >= 0; i--) {
-      printf("Path: (%d, %d)\n", path.array[i].cell.row,
-             path.array[i].cell.col);
+      printf("%d,%d\n", path.array[i].cell.row, path.array[i].cell.col);
     }
   } else {
     fprintf(stderr, "Did not find shortest path out\n");
   }
 
-  freeArray(&path);
+  free_array(&path);
 }
 
-//
 bool check_neighbours(Map *maze, coordinates_t start,
                       struct node *dequeued_node, Array *visited, int *count) {
 
@@ -386,7 +329,7 @@ bool check_neighbours(Map *maze, coordinates_t start,
       struct node tmp = *dequeued_node;
       next_cell(maze, &tmp.cell, i);
 
-      if (is_goal(maze, start, tmp.cell)) {
+      if (is_goal(maze, start, tmp.cell, dequeued_node->cell)) {
         pmesg("I WAS CALLED");
         return false;
       }
@@ -398,16 +341,10 @@ bool check_neighbours(Map *maze, coordinates_t start,
         if (!is_lebeled(maze, tmp.cell)) {
           set_label(maze, tmp.cell);
           tmp.parent = lastVisited;
-          insertArray(visited, tmp);
-          pmesg("PLEASE %d", *count);
-          pmesg("For NODE: %d %d parent: %d %d", tmp.cell.row, tmp.cell.col,
-                lastVisited->cell.row, lastVisited->cell.col);
+          insert_array(visited, tmp);
 
           enqueue(tmp.cell, lastVisited);
           *count += 1;
-          // pmesg("SAVING PARENT: %d %d",
-          //       visited->array[*count - 1].parent->cell.row,
-          //       visited->array[*count - 1].parent->cell.col);
         }
       }
     }
@@ -433,24 +370,22 @@ int bfs(coordinates_t start, char *file_name) {
   }
 
   Array visited;
-  initArray(&visited, maze.cols * maze.rows);
+  init_array(&visited, maze.cols * maze.rows);
 
-  struct node end;
+  struct node end = {0};
   struct node root = {.cell = start, .parent = NULL, .next = NULL};
   enqueue(start, NULL);
 
   int j = 0;
   set_label(&maze, start);
 
-  insertArray(&visited, root);
+  insert_array(&visited, root);
   j++;
 
   while (front != NULL) {
     struct node dequeued_node;
     dequeue(&dequeued_node);
     display();
-
-    fprintf(stdout, "%d, %d\n", dequeued_node.cell.row, dequeued_node.cell.col);
 
     if (!check_neighbours(&maze, root.cell, &dequeued_node, &visited, &j)) {
       end = dequeued_node;
