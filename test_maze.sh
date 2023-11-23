@@ -34,7 +34,7 @@ run_test() {
     
     echo -n -e "Running $input_file, argument ${test_arg}\n"
     
-    actual_output=$(./maze $test_arg $input_file)
+    actual_output=$(./maze $test_arg $input_file 2>&1)
     
     if [[ "$actual_output" == "$expected_output" ]]; then
         echo -e "${GREEN} [OK] ${NORMAL}"
@@ -84,7 +84,18 @@ run_test "test_01.txt" "--lpath 6 1" "6,1
 1,2
 1,1"
 
+# One cell escape
 run_test "test_01.txt" "--lpath 6 7" "6,7"
+run_test "test_01.txt" "--rpath 6 7" "6,7"
+run_test "test_01.txt" "--shortest 6 7" "6,7"
+
+run_test "test_01.txt" "--shortest 6 6" "Invalid entry cell!"
+run_test "test_01.txt" "--rpath 6 6" "Invalid entry cell!"
+run_test "test_01.txt" "--shortest 6 6" "Invalid entry cell!"
+
+run_test "test_01.txt" "--shortest 1 7" "Invalid entry cell!"
+run_test "test_01.txt" "--rpath 1 7" "Invalid entry cell!"
+run_test "test_01.txt" "--shortest 1 7" "Invalid entry cell!"
 
 run_test "test_01.txt" "--rpath 6 1" "6,1
 6,2
@@ -305,6 +316,26 @@ run_test "test_05.txt" "--rpath 1 3" "1,3
 10,5"
 
 
+run_test "test_05.txt" "--lpath 1 1" "Invalid entry cell!"
+run_test "test_05.txt" "--rpath 1 1" "Invalid entry cell!"
+run_test "test_05.txt" "--shortest 1 1" "Invalid entry cell!"
+
+run_test "test_05.txt" "--lpath 1 2" "Invalid entry cell!"
+run_test "test_05.txt" "--rpath 1 2" "Invalid entry cell!"
+run_test "test_05.txt" "--shortest 1 2" "Invalid entry cell!"
+
+run_test "test_05.txt" "--lpath 5 5" "Invalid entry cell!"
+run_test "test_05.txt" "--rpath 5 5" "Invalid entry cell!"
+run_test "test_05.txt" "--shortest 5 5" "Invalid entry cell!"
+
+run_test "test_05.txt" "--rpath 10 10" "Invalid entry cell!"
+run_test "test_05.txt" "--lpath 10 10" "Invalid entry cell!"
+run_test "test_05.txt" "--shortest 10 10" "Invalid entry cell!"
+
+run_test "test_05.txt" "--rpath 110 110" "Invalid entry cell!"
+run_test "test_05.txt" "--lpath 110 110" "Invalid entry cell!"
+run_test "test_05.txt" "--shortest 110 110" "Invalid entry cell!"
+
 run_test "test_05.txt" "--lpath 1 3" "1,3
 1,2
 2,2
@@ -434,6 +465,7 @@ fi
 # remove temp test files
 # if you want individual tests comment line with the test you want to keep
 # make sure to later uncomment tho :D
+rm test_05.txt
 rm test_04.txt
 rm test_03.txt
 rm test_02.txt
