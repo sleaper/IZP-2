@@ -21,17 +21,22 @@
   } while (0)
 #endif
 
-#define CELL_NEIGHBORS_COUNT 3
-#define EMPTY_CELL 10
+#define CELL_NEIGHBORS_COUNT 3 ///< Number of neighbours each cell has.
+#define EMPTY_CELL 10          ///< This represents non existing cell
 
-#define RIGHT_HAND 6
+#define RIGHT_HAND 6 ///<
 #define LEFT_HAND 7
 
 #define LEFT_BORDER 0
 #define RIGHT_BORDER 1
 #define VERTICAL_BORDER 2
-#define NDIR 3
 
+#define NDIR 3 ///< Number of possible directions from cell
+
+/**
+ * @brief Map represents matrix
+ *
+ */
 typedef struct {
   int rows;
   int cols;
@@ -43,43 +48,65 @@ typedef struct {
   int col;
 } coordinates_t;
 
-// Queue
+/**
+ * @brief Node represents an item in Queue
+ *
+ */
 struct node {
   coordinates_t cell;
   struct node *parent;
   struct node *next;
 };
 
+/// Front of the Queue
 struct node *front = NULL;
+/// Rear of the Queue
 struct node *rear = NULL;
 
+/**
+ * @brief Array used in BFS
+ *
+ */
 typedef struct {
   struct node *array;
   size_t used;
   size_t size;
 } Array;
 
-void init_array(Array *a, size_t init_size) {
-  a->array = malloc(init_size * sizeof(struct node));
-  a->used = 0;
-  a->size = init_size;
+/**
+ * Initialize an array.
+ * @param arr pointer to array
+ * @param init_size initial size of the array
+ */
+void init_array(Array *arr, size_t init_size) {
+  arr->array = malloc(init_size * sizeof(struct node));
+  arr->used = 0;
+  arr->size = init_size;
 }
 
-void array_insert(Array *arr, struct node element) {
-  // a->used is the number of used entries, because a->array[a->used++] updates
-  // a->used only *after* the array has been accessed. Therefore a->used can go
-  // up to a->size
+/**
+ * Insert item into array.
+ * @param arr pointer to array
+ * @param init_size initial size of the array
+ */
+void array_insert(Array *arr, struct node item) {
+
   if (arr->used == arr->size) {
     arr->size *= 2;
     arr->array = realloc(arr->array, arr->size * sizeof(struct node));
+    // TODO ADD if for NULL
   }
-  arr->array[arr->used++] = element;
+  arr->array[arr->used++] = item;
 }
 
-void free_array(Array *a) {
-  free(a->array);
-  a->array = NULL;
-  a->used = a->size = 0;
+/**
+ * Free an array.
+ * @param arr pointer to array
+ */
+void free_array(Array *arr) {
+  free(arr->array);
+  arr->array = NULL;
+  arr->used = arr->size = 0;
 }
 
 void enqueue(coordinates_t cell, struct node *parent);
@@ -219,6 +246,11 @@ bool is_in_maze(Map *maze, coordinates_t cell) {
   return false;
 }
 
+/**
+ * Add cell to queue.
+ * @param cell coordinations of cell
+ * @param parent parent cell
+ */
 void enqueue(coordinates_t cell, struct node *parent) {
   pmesg("engquing %d, %d", cell.row, cell.col);
   struct node *nptr = malloc(sizeof(struct node));
@@ -260,6 +292,10 @@ void freeQueue() {
   rear = NULL; // Set rear to NULL as the queue is now empty
 }
 
+/**
+ * Dequeue node from queue.
+ * @param node pointer to a node, which will be dequeued
+ */
 void dequeue(struct node *node) {
   if (front == NULL) {
     printf("\n\nqueue is empty \n");
@@ -478,7 +514,7 @@ int start_border(Map *map, int r, int c, int leftright) {
     }
   }
   pmesg("pepa %d", leftright);
-  return 1;
+  return -1;
 }
 
 int path_by_rule(coordinates_t start_cell, char *file_name, int leftright) {
@@ -505,10 +541,16 @@ int path_by_rule(coordinates_t start_cell, char *file_name, int leftright) {
   coordinates_t curr_cell = start_cell;
   int curr_border =
       start_border(&maze, start_cell.row, start_cell.col, leftright);
+
+  if (curr_border == -1) {
+    fprintf(stderr, "Invalid entry cell!\n");
+    free_maze(&fptr, &maze);
+    return -1;
+  }
+
   pmesg("start %d", curr_border);
 
   // Search algorithm
-  int count = 0;
   while (1) {
     fprintf(stdout, "%d,%d\n", curr_cell.row, curr_cell.col);
 
@@ -533,7 +575,6 @@ int path_by_rule(coordinates_t start_cell, char *file_name, int leftright) {
       pmesg("Some border error");
       return -1;
     }
-    count++;
   }
 
   free_maze(&fptr, &maze);
