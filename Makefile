@@ -12,3 +12,6 @@ prod: maze.c
 # You can keep your original target as well
 maze: maze.c
 	$(CC) $(CFLAGS) maze.c -o maze
+
+test: maze
+	@./test_maze.sh

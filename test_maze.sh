@@ -132,6 +132,17 @@ run_test "test_01.txt" "--rpath 6 1" "6,1
 
 run_test "test_01.txt" "--rpath 6 7" "6,7"
 
+
+run_test "test_01.txt" "--shortest 3 7" "3,7
+2,7
+2,6
+2,5
+2,4
+1,4
+1,3
+1,2
+1,1"
+
 # tests by cubko
 run_test "test_01.txt" "--lpath 3 7" "3,7
 2,7
@@ -454,6 +465,80 @@ run_test "test_05.txt" "--shortest 1 3" "1,3
 10,4
 10,5"
 
+# if this is giving you "Invalid", check that you are handling the last line correctly, because there is no new line before the end of the file
+echo -e "6 7\n5 6 1 2 1 0 6\n1 4 4 0 4 0 2\n1 0 4 0 4 6 1\n1 2 7 1 0 4 0\n2 1 4 2 3 1 2\n4 2 5 0 0 2 5" > test_06.txt
+
+run_test "test_06.txt" "--test" "Valid"
+
+run_test "test_06.txt" "--rpath 1 3" "1,3
+1,4
+2,4
+2,3
+2,2
+2,1
+3,1
+3,2
+4,2
+4,1
+5,1"
+
+run_test "test_06.txt" "--lpath 1 3" "1,3
+1,4
+2,4
+2,5
+2,6
+1,6
+1,5"
+
+run_test "test_06.txt" "--rpath 1 5" "1,5
+1,6
+2,6
+2,5
+2,4
+1,4
+1,3"
+
+run_test "test_06.txt" "--lpath 1 5" "1,5
+1,6
+1,7
+1,6
+2,6
+2,7
+3,7"
+
+run_test "test_06.txt" "--rpath 6 1" "6,1
+6,2
+5,2
+5,3
+5,4
+6,4
+6,3
+6,4
+6,5"
+
+run_test "test_06.txt" "--lpath 6 1" "6,1
+6,2
+5,2
+5,3
+5,4
+6,4
+6,5
+6,6
+5,6
+5,7
+4,7
+4,6
+4,5
+5,5
+4,5
+4,4
+3,4
+3,3
+3,2
+4,2
+4,1
+5,1"
+
 
 # print test results
 if [[ "$correct" == "$test_count" ]]; then
@@ -465,6 +550,7 @@ fi
 # remove temp test files
 # if you want individual tests comment line with the test you want to keep
 # make sure to later uncomment tho :D
+rm test_06.txt
 rm test_05.txt
 rm test_04.txt
 rm test_03.txt
