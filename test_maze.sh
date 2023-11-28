@@ -25,7 +25,7 @@ test_count=0
 correct=0
 
 # compile maze.c just in case
-gcc -std=c11 -DNDEBUG -Wall -Wextra -Werror maze.c -o maze
+gcc -std=c11 -Wall -Wextra -Werror maze.c -o maze
 
 run_test() {
     input_file=$1
@@ -84,19 +84,6 @@ run_test "test_01.txt" "--lpath 6 1" "6,1
 1,2
 1,1"
 
-# One cell escape
-run_test "test_01.txt" "--lpath 6 7" "6,7"
-run_test "test_01.txt" "--rpath 6 7" "6,7"
-run_test "test_01.txt" "--shortest 6 7" "6,7"
-
-run_test "test_01.txt" "--shortest 6 6" "Invalid entry cell!"
-run_test "test_01.txt" "--rpath 6 6" "Invalid entry cell!"
-run_test "test_01.txt" "--shortest 6 6" "Invalid entry cell!"
-
-run_test "test_01.txt" "--shortest 1 7" "Invalid entry cell!"
-run_test "test_01.txt" "--rpath 1 7" "Invalid entry cell!"
-run_test "test_01.txt" "--shortest 1 7" "Invalid entry cell!"
-
 run_test "test_01.txt" "--rpath 6 1" "6,1
 6,2
 5,2
@@ -129,6 +116,20 @@ run_test "test_01.txt" "--rpath 6 1" "6,1
 2,6
 2,7
 3,7"
+
+# One cell escape
+run_test "test_01.txt" "--lpath 6 7" "6,7"
+run_test "test_01.txt" "--rpath 6 7" "6,7"
+run_test "test_01.txt" "--shortest 6 7" "6,7"
+
+run_test "test_01.txt" "--shortest 6 6" "Invalid entry cell!"
+run_test "test_01.txt" "--rpath 6 6" "Invalid entry cell!"
+run_test "test_01.txt" "--shortest 6 6" "Invalid entry cell!"
+
+run_test "test_01.txt" "--shortest 1 7" "Invalid entry cell!"
+run_test "test_01.txt" "--rpath 1 7" "Invalid entry cell!"
+run_test "test_01.txt" "--shortest 1 7" "Invalid entry cell!"
+
 
 run_test "test_01.txt" "--rpath 6 7" "6,7"
 

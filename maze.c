@@ -6,24 +6,11 @@
  *
  */
 #include <assert.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-//
-// leva  + prava + spodni
-// 0			 1  		 2
-
-// TODO: REMOVE THIS TODO IN PRODUCTION CODE
-#ifndef NDEBUG
-#define pmesg(s, ...)                                                          \
-  fprintf(stderr, "%s:%u: " s "\n", __func__, __LINE__, ##__VA_ARGS__)
-#else
-#define pmesg(s, ...)                                                          \
-  do {                                                                         \
-  } while (0)
-#endif
 
 #define CELL_NEIGHBORS_COUNT 3 ///< Number of neighbours each cell has.
 #define EMPTY_CELL 10          ///< This represents non existing cell
@@ -77,9 +64,47 @@ struct node *rear = NULL;
  */
 typedef struct {
   struct node *array;
-  size_t used;
+  size_t used; /// index of next free position
   size_t size;
 } Array;
+
+void enqueue(coordinates_t cell, struct node *parent);
+void dequeue(struct node *new_cell);
+
+int new_border(int old_border);
+int start_border(Map *map, int r, int c, int leftright);
+int get_side_border(Map *maze, coordinates_t curr_cell, int border,
+                    int leftright);
+bool isborder(Map *map, int r, int c, int border);
+bool is_valid_start(Map *maze, int r, int c);
+bool valid_borders(unsigned char cell, unsigned char *neighbors);
+
+bool is_lebeled(Map *maze, coordinates_t cell);
+void set_label(Map *maze, coordinates_t cell);
+bool is_goal(Map *maze, coordinates_t start, coordinates_t new_cell,
+             coordinates_t base_cell);
+bool is_exit(Map *maze, coordinates_t cell);
+bool is_in_maze(Map *maze, coordinates_t point);
+
+int get_cell_index(Map *maze, int r, int c);
+void next_cell(Map *maze, coordinates_t *curr_cell, int border);
+
+void print_help();
+unsigned char *maze_test(char *file_name);
+int path_by_rule(coordinates_t start_cell, char *file_name, int leftright);
+int bfs(coordinates_t start_cell, char *file_name);
+
+Map *init_maze(FILE **fptr, Map *maze, char *file_name);
+void free_maze(FILE **fptr, Map *maze);
+Map *map_load(FILE **fptr, Map *maze);
+
+// Array index represents current border, value for index represents right
+// border from current border
+const int rpath_even_dir[NDIR] = {2, 0, 1};
+const int rpath_odd_dir[NDIR] = {1, 2, 0};
+
+const int lpath_even_dir[NDIR] = {1, 2, 0};
+const int lpath_odd_dir[NDIR] = {2, 0, 1};
 
 /**
  * Allocates memory for an array and initializes its metadata.
@@ -102,16 +127,18 @@ int init_array(Array *arr, size_t init_size) {
  * @param arr Pointer to array
  * @param init_size Initial size of the array
  */
-void array_insert(Array *arr, struct node item) {
+int array_insert(Array *arr, struct node item) {
 
   if (arr->used == arr->size) {
     arr->size *= 2;
     arr->array = realloc(arr->array, arr->size * sizeof(struct node));
     if (arr->array == NULL) {
-      return;
+      return -1;
     }
   }
+  // use arr->used, then increment
   arr->array[arr->used++] = item;
+  return 0;
 }
 
 /**
@@ -124,43 +151,67 @@ void free_array(Array *arr) {
   arr->used = arr->size = 0;
 }
 
-void enqueue(coordinates_t cell, struct node *parent);
-void dequeue(struct node *new_cell);
+/**
+ * Add cell to queue.
+ * @param cell coordinations of cell
+ * @param parent parent cell
+ */
+void enqueue(coordinates_t cell, struct node *parent) {
+  struct node *nptr = malloc(sizeof(struct node));
+  assert(nptr != NULL);
+  if (nptr == NULL) {
+    fprintf(stderr, "Failed to malloc\n");
+    return;
+  }
 
-int new_border(int old_border);
-int start_border(Map *map, int r, int c, int leftright);
-int get_side_border(Map *maze, coordinates_t curr_cell, int border,
-                    int leftright);
-bool is_valid_start(Map *maze, int r, int c);
-bool isborder(Map *map, int r, int c, int border);
-bool valid_borders(unsigned char cell, unsigned char *neighbors);
+  nptr->cell = cell;
+  nptr->next = NULL;
+  nptr->parent = parent;
 
-bool is_lebeled(Map *maze, coordinates_t cell);
-void set_label(Map *maze, coordinates_t cell);
-bool is_goal(Map *maze, coordinates_t start, coordinates_t new_cell,
-             coordinates_t base_cell);
+  if (rear == NULL) {
+    front = nptr;
+    rear = nptr;
+  } else {
+    rear->next = nptr;
+    rear = rear->next;
+  }
+}
 
-int get_cell_index(Map *maze, int r, int c);
-bool is_exit(Map *maze, coordinates_t cell);
-void next_cell(Map *maze, coordinates_t *curr_cell, int border);
-bool is_in_maze(Map *maze, coordinates_t point);
-void print_help();
+/**
+ * Free queue
+ */
+void freeQueue() {
+  while (front != NULL) {
+    struct node *temp = front;
+    front = front->next;
+    free(temp);
+  }
+  rear = NULL; // Set rear to NULL as the queue is now empty
+}
 
-int path_by_rule(coordinates_t start_cell, char *file_name, int leftright);
-int bfs(coordinates_t start_cell, char *file_name);
+/**
+ * Dequeue node from queue.
+ * @param node pointer to a node, which will be dequeued
+ */
+void dequeue(struct node *node) {
+  if (front == NULL) {
+    front = NULL;
+    rear = NULL;
+  } else {
+    struct node *temp;
+    temp = front;
+    *node = *temp;
 
-Map *init_maze(FILE **fptr, Map *maze, char *file_name);
-void free_maze(FILE **fptr, Map *maze);
-Map *map_load(FILE **fptr, Map *maze);
-unsigned char *maze_test(char *file_name);
+    if (front == rear) {
+      front = front->next;
+      rear = rear->next;
+    } else {
+      front = front->next;
+    }
 
-// Array index represents current border, value for index represents right
-// border from current border
-const int rpath_even_dir[NDIR] = {2, 0, 1};
-const int rpath_odd_dir[NDIR] = {1, 2, 0};
-
-const int lpath_even_dir[NDIR] = {1, 2, 0};
-const int lpath_odd_dir[NDIR] = {2, 0, 1};
+    free(temp);
+  }
+}
 
 int main(int argc, char **argv) {
   // TODO: Maybe move to function?
@@ -168,7 +219,6 @@ int main(int argc, char **argv) {
     print_help();
     return 0;
   } else if (argc == 3 && !strcmp(argv[1], "--test")) {
-    pmesg("Running maze test");
     unsigned char *cells = maze_test(argv[2]);
 
     if (cells == NULL) {
@@ -187,7 +237,6 @@ int main(int argc, char **argv) {
       return 1;
     }
   } else if (argc == 5 && !strcmp(argv[1], "--lpath")) {
-    pmesg("START at: [%s][%s]", argv[2], argv[3]);
     coordinates_t start = {.row = atoi(argv[2]), .col = atoi(argv[3])};
 
     int result = path_by_rule(start, argv[4], LEFT_HAND);
@@ -195,7 +244,6 @@ int main(int argc, char **argv) {
       return 1;
     }
   } else if (argc == 5 && !strcmp(argv[1], "--shortest")) {
-    pmesg("START at: [%s][%s]", argv[2], argv[3]);
     coordinates_t start = {.row = atoi(argv[2]), .col = atoi(argv[3])};
 
     int result = bfs(start, argv[4]);
@@ -216,6 +264,9 @@ int main(int argc, char **argv) {
  * @returns True as valid, false as invalid
  */
 bool is_valid_start(Map *maze, int r, int c) {
+  if (r == 0 || c == 0)
+    return false;
+
   bool is_maze_col_even = (maze->cols % 2) == 0;
   bool is_cell_row_even = (r % 2) == 0;
   bool is_cell_index_even = get_cell_index(maze, r, c) % 2 == 0;
@@ -252,91 +303,18 @@ bool is_valid_start(Map *maze, int r, int c) {
   return false;
 }
 
+/**
+ * Check if cell is in maze
+ * @param maze pointer to loaded maze
+ * @param start coordinates of start cell
+ * @return boolean
+ */
 bool is_in_maze(Map *maze, coordinates_t cell) {
-  pmesg("CELL r: %d, c: %d", cell.row, cell.col);
-
-  if (cell.row > 0 && cell.row <= maze->rows && cell.col > 0 &&
-      cell.col <= maze->cols) {
-    pmesg("Is in maze");
-    return true;
+  if (cell.row < 1 || cell.row > maze->rows || cell.col < 1 ||
+      cell.col > maze->cols) {
+    return false;
   }
-  return false;
-}
-
-/**
- * Add cell to queue.
- * @param cell coordinations of cell
- * @param parent parent cell
- */
-void enqueue(coordinates_t cell, struct node *parent) {
-  pmesg("engquing %d, %d", cell.row, cell.col);
-  struct node *nptr = malloc(sizeof(struct node));
-  assert(nptr != NULL);
-  if (nptr == NULL) {
-    fprintf(stderr, "Failed to malloc\n");
-    return;
-  }
-
-  nptr->cell = cell;
-  nptr->next = NULL;
-  nptr->parent = parent;
-
-  if (rear == NULL) {
-    front = nptr;
-    rear = nptr;
-  } else {
-    rear->next = nptr;
-    rear = rear->next;
-  }
-}
-
-void display() {
-  struct node *temp;
-  temp = front;
-  pmesg("DISPLAY:");
-  while (temp != NULL) {
-    pmesg("%d, %d\t", temp->cell.row, temp->cell.col);
-    temp = temp->next;
-  }
-  pmesg("END DISPLAY");
-}
-
-/**
- * Free queue
- */
-void freeQueue() {
-  while (front != NULL) {
-    struct node *temp = front;
-    front = front->next;
-    free(temp);
-  }
-  rear = NULL; // Set rear to NULL as the queue is now empty
-}
-
-/**
- * Dequeue node from queue.
- * @param node pointer to a node, which will be dequeued
- */
-void dequeue(struct node *node) {
-  if (front == NULL) {
-    printf("\n\nqueue is empty \n");
-    front = NULL;
-    rear = NULL;
-  } else {
-    struct node *temp;
-    temp = front;
-    *node = *temp;
-
-    if (front == rear) {
-      front = front->next;
-      rear = rear->next;
-    } else {
-      front = front->next;
-    }
-
-    pmesg("DELETE: %d, %d", temp->cell.row, temp->cell.col);
-    free(temp);
-  }
+  return true;
 }
 
 /**
@@ -388,8 +366,7 @@ bool is_goal(Map *maze, coordinates_t start, coordinates_t new_cell,
              coordinates_t base_cell) {
   // Return false immediately if the current position is the start position,
   // or if the current position is outside the bounds of the maze.
-  if ((new_cell.row < 1 || new_cell.row > maze->rows || new_cell.col < 1 ||
-       new_cell.col > maze->cols) &&
+  if (!is_in_maze(maze, new_cell) &&
       (base_cell.row != start.row || base_cell.col != start.col)) {
     return true;
   }
@@ -405,6 +382,7 @@ void reconstruct_path(coordinates_t s, struct node e) {
   struct node *current = &e;
   Array path;
   if (init_array(&path, 20) == -1) {
+    fprintf(stderr, "Array did not init!\n");
     return;
   }
 
@@ -447,18 +425,12 @@ bool check_neighbours(Map *maze, coordinates_t start,
     }
   }
 
-  pmesg("Checking cell %d %d", dequeued_node->cell.row,
-        dequeued_node->cell.col);
-  pmesg("LAST visited: %d %d", lastVisited->cell.row, lastVisited->cell.col);
-
   for (int i = 0; i < CELL_NEIGHBORS_COUNT; i++) {
     if (!isborder(maze, dequeued_node->cell.row, dequeued_node->cell.col, i)) {
-      pmesg("border %d is free", i);
 
       struct node tmp = *dequeued_node;
       next_cell(maze, &tmp.cell, i);
 
-      pmesg("CHECKING CELL %d %d", tmp.cell.row, tmp.cell.col);
       if (is_goal(maze, start, tmp.cell, dequeued_node->cell)) {
         return false;
       }
@@ -507,6 +479,7 @@ int bfs(coordinates_t start, char *file_name) {
 
   Array visited;
   if (init_array(&visited, maze.cols * maze.rows) == -1) {
+    fprintf(stderr, "Array did not init!\n");
     return -1;
   }
 
@@ -517,12 +490,10 @@ int bfs(coordinates_t start, char *file_name) {
   set_label(&maze, start);
 
   array_insert(&visited, root);
-  pmesg("used %zu, size %zu", visited.used, visited.size);
 
   while (front != NULL) {
     struct node dequeued_node;
     dequeue(&dequeued_node);
-    display();
 
     if (!check_neighbours(&maze, root.cell, &dequeued_node, &visited)) {
       end = dequeued_node;
@@ -617,8 +588,6 @@ int path_by_rule(coordinates_t start_cell, char *file_name, int leftright) {
     return -1;
   }
 
-  pmesg("start %d", curr_border);
-
   // Search algorithm
   while (1) {
     fprintf(stdout, "%d,%d\n", curr_cell.row, curr_cell.col);
@@ -630,18 +599,12 @@ int path_by_rule(coordinates_t start_cell, char *file_name, int leftright) {
     next_cell(&maze, &curr_cell, curr_border);
 
     if (is_exit(&maze, curr_cell)) {
-      pmesg("We found exit! %d, %d vs %d, %d", curr_cell.row, curr_cell.col,
-            maze.rows, maze.cols);
       break;
     }
 
-    pmesg("curr border %d; for cell %d %d", curr_border, curr_cell.row,
-          curr_cell.col);
     curr_border =
         get_side_border(&maze, curr_cell, new_border(curr_border), leftright);
-    pmesg("new cell border; %d", curr_border);
     if (curr_border == -1) {
-      pmesg("Some border error");
       return -1;
     }
   }
@@ -658,8 +621,6 @@ int path_by_rule(coordinates_t start_cell, char *file_name, int leftright) {
 bool is_exit(Map *maze, coordinates_t cell) {
   if ((cell.row < 1 || cell.row > maze->rows || cell.col < 1 ||
        cell.col > maze->cols)) {
-    pmesg("We found exit! cell:%d, %d ??? %d, %d", cell.row, cell.col,
-          maze->rows, maze->cols);
     return true;
   }
   return false;
@@ -811,7 +772,6 @@ Map *init_maze(FILE **fptr, Map *map, char *file_name) {
   // Open file
   *fptr = fopen(file_name, "r");
   if (*fptr == NULL) {
-    pmesg("Error opening file!");
     return NULL;
   }
 
@@ -819,12 +779,10 @@ Map *init_maze(FILE **fptr, Map *map, char *file_name) {
   int size[2] = {0};
   for (int i = 0; i < 2; i++) {
     fscanf(*fptr, "%d", &size[i]);
-    pmesg("SIZE: %d", size[i]);
   }
 
   unsigned char *ptr = malloc(sizeof(unsigned char) * size[0] * size[1]);
   if (ptr == NULL) {
-    pmesg("No memory!");
     fclose(*fptr);
     return NULL;
   }
@@ -858,8 +816,6 @@ unsigned char *maze_test(char *file_name) {
     return NULL;
   }
 
-  pmesg("rows: %d, columns: %d", maze.rows, maze.cols);
-
   // Check border validity
   // get neigbourts around one cell
   for (int row = 1; row <= maze.rows; row++) {
@@ -877,8 +833,6 @@ unsigned char *maze_test(char *file_name) {
       // Right
       neighbors[1] = (col < maze.cols) ? maze.cells[cellIndex + 1] : EMPTY_CELL;
 
-      //
-      // TODO: SPlit into another function
       if (isMazeColEven && isCurrRowEven) {
         if (isCellIndexEven) {
           neighbors[2] = (row < maze.rows) ? maze.cells[cellIndex + maze.cols]
@@ -898,8 +852,7 @@ unsigned char *maze_test(char *file_name) {
       }
 
       if (!valid_borders(maze.cells[cellIndex], neighbors)) {
-        free(maze.cells);
-        fclose(fptr);
+        free_maze(&fptr, &maze);
         return NULL;
       }
     }
