@@ -471,6 +471,10 @@ echo -e "6 7\n5 6 1 2 1 0 6\n1 4 4 0 4 0 2\n1 0 4 0 4 6 1\n1 2 7 1 0 4 0\n2 1 4 
 
 run_test "test_06.txt" "--test" "Valid"
 
+run_test "test_06.txt" "--rpath A 3" "Invalid entry cell!"
+run_test "test_06.txt" "--lpath A 3" "Invalid entry cell!"
+run_test "test_06.txt" "--shortest A 3" "Invalid entry cell!"
+
 run_test "test_06.txt" "--rpath 1 3" "1,3
 1,4
 2,4
@@ -540,6 +544,42 @@ run_test "test_06.txt" "--lpath 6 1" "6,1
 4,1
 5,1"
 
+echo -e "7 8 4 4 4 2 1 2 5 2 4 4 2 1 0 0 4 2 5 4 0 6 1 0 4 6 5 4 0 6 5 0 0 4 4 0 0 4 6 1 0 2 3 1 0 4 0 0 2 3 1 4 2 5 0 2 3 3" > test_07.txt
+
+run_test "test_07.txt" "--test" "Valid"
+
+run_test "test_07.txt" "--lpath 1 1" "1,1
+1,2
+1,3
+1,4
+2,4
+2,5
+2,6
+1,6
+1,5"
+
+run_test "test_07.txt" "--shortest 7 6" "7,6
+7,5
+6,5
+6,4
+6,3
+6,2
+5,2
+5,1"
+
+run_test "test_07.txt" "--shortest 1 1" "1,1
+1,2
+1,3
+1,4
+2,4
+2,5
+2,6
+1,6
+1,5"
+
+run_test "test_07.txt" "--rpath 7 8" "7,8"
+run_test "test_07.txt" "--lpath 7 8" "7,8"
+run_test "test_07.txt" "--shortest 7 8" "7,8"
 
 # print test results
 if [[ "$correct" == "$test_count" ]]; then
@@ -551,6 +591,7 @@ fi
 # remove temp test files
 # if you want individual tests comment line with the test you want to keep
 # make sure to later uncomment tho :D
+rm test_07.txt
 rm test_06.txt
 rm test_05.txt
 rm test_04.txt

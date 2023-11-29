@@ -55,8 +55,8 @@ struct node {
 
 /// Front of the Queue
 struct node *front = NULL;
-/// Rear of the Queue
-struct node *rear = NULL;
+/// tail of the Queue
+struct node *tail = NULL;
 
 /**
  * Array used in BFS
@@ -168,12 +168,12 @@ void enqueue(coordinates_t cell, struct node *parent) {
   nptr->next = NULL;
   nptr->parent = parent;
 
-  if (rear == NULL) {
+  if (tail == NULL) {
     front = nptr;
-    rear = nptr;
+    tail = nptr;
   } else {
-    rear->next = nptr;
-    rear = rear->next;
+    tail->next = nptr;
+    tail = tail->next;
   }
 }
 
@@ -186,7 +186,7 @@ void freeQueue() {
     front = front->next;
     free(temp);
   }
-  rear = NULL; // Set rear to NULL as the queue is now empty
+  tail = NULL; // Set tail to NULL as the queue is now empty
 }
 
 /**
@@ -196,15 +196,15 @@ void freeQueue() {
 void dequeue(struct node *node) {
   if (front == NULL) {
     front = NULL;
-    rear = NULL;
+    tail = NULL;
   } else {
     struct node *temp;
     temp = front;
     *node = *temp;
 
-    if (front == rear) {
+    if (front == tail) {
       front = front->next;
-      rear = rear->next;
+      tail = tail->next;
     } else {
       front = front->next;
     }
