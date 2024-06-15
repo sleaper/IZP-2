@@ -1,4 +1,4 @@
-# Maze Solver Overview
+# Maze Solver
 This program navigates through a maze defined in a text file using a rectangular matrix of integers. The objective is to print the coordinates of the path from the maze's entrance to its exit.
 
 ## Compilation and Execution
